@@ -13,7 +13,7 @@ def md5sum(filename, verbosity):
       md5.update(chunk)
     return md5.hexdigest()
 
-def locatefiles(user, domain=null):
+def locatefiles(user, domain=''):
   base = '/usr/local/apache/domlogs/'
   if domain:
     if os.path.exists(base + domain):
@@ -24,7 +24,7 @@ def locatefiles(user, domain=null):
         if re.search('^\s\s' + domain + ':', line):
            subdom = line.split(':')[1].strip().split('\n')[0]
            break
-       if os.path.exists(base + subdom):
+      if os.path.exists(base + subdom):
          return [base + subdom]
   if user:
     userlogdir = base + user
@@ -47,8 +47,10 @@ def parsefiles(files):
         try:
           curr = open(file, r).readlines()
           for line in curr:
-            # Parse line
-            
+            print line
+            #Do things with lines.
+        except:
+          pass        
 
 
 def main():
@@ -61,9 +63,12 @@ def main():
   command.add_option('-f', '--file', action='store', dest='file', help='Provide a specific log file to read.')
 
   options, arguments = command.parse_args()
+  data = {}
+  data['files'] = []
   if options.file:
     if os.path.exists(options.file):
-      md5 = md5sum(options.file, options.verbose)
+      data['files'].append([options.file,md5sum(options.file, options.verbose)])
+      print data
     else:
       print "\n[!] \'%s\' does not appear to be a file. Please confirm it\'s validity.\n" % options.file
       command.print_help()
@@ -75,7 +80,8 @@ def main():
           user = line.split(':')[1].strip().split('\n')[0]
           break
       if 'user' in locals():
-        
+        print user
+        #do something  
       else:
         print '\n[!] Domain `%s` wasn\'t found in /etc/userdomains.\n' % options.domain
     else:
@@ -89,6 +95,7 @@ def main():
          pdomain = line.split(':')[1].strip().split('\n')[0]
          break
      if 'pdomain' in locals():
+       print pdomain
      else:
       print '\n[!] Primary domain not found for User `%s`!' % options.user 
       command.print_help()
