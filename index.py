@@ -7,11 +7,49 @@ import hashlib
 import re
 
 def md5sum(filename, verbosity):
-    md5 = hashlib.md5()
-    with open(filename,'rb') as f: 
-        for chunk in iter(lambda: f.read(128*md5.block_size), b''): 
-             md5.update(chunk)
+  md5 = hashlib.md5()
+  with open(filename,'rb') as f: 
+    for chunk in iter(lambda: f.read(128*md5.block_size), b''): 
+      md5.update(chunk)
     return md5.hexdigest()
+
+def locatefiles(user, domain=null):
+  base = '/usr/local/apache/domlogs/'
+  if domain:
+    if os.path.exists(base + domain):
+      return [base + domain]
+    else:
+      userdata = open('/var/cpanel/userdata/' + user + '/main', 'r').readlines()
+      for line in userdata:
+        if re.search('^\s\s' + domain + ':', line):
+           subdom = line.split(':')[1].strip().split('\n')[0]
+           break
+       if os.path.exists(base + subdom):
+         return [base + subdom]
+  if user:
+    userlogdir = base + user
+    if os.path.exists(userlogdir):
+      domains = []
+      userdomain = open('/etc/userdomains', 'r').readlines()
+      for line in userdomain:
+        if re.search(':' + user + '\n$', line):
+          match = line.split(':').strip()[0]
+          if os.path.exists(userlogdir + match):
+             domains.append(userlogdir + match)
+      return domains
+    else:
+      print "\n[!] `%s`'s domlog directory doesn't exist. Stopping here.\n"
+
+def parsefiles(files):
+  if type(files) is list:
+    for file in files:
+      if os.path.exists(file):
+        try:
+          curr = open(file, r).readlines()
+          for line in curr:
+            # Parse line
+            
+
 
 def main():
   """Determine requested options and route functions to be executed."""
@@ -37,11 +75,12 @@ def main():
           user = line.split(':')[1].strip().split('\n')[0]
           break
       if 'user' in locals():
-        print 'User `%s` found!' % user
+        
       else:
-        print 'User not found for domain: `%s`' % options.domain
+        print '\n[!] Domain `%s` wasn\'t found in /etc/userdomains.\n' % options.domain
     else:
-      print "Error"
+      print "\n[!] /etc/userdomains doesn't exist. Is this a cPanel server?\n"
+      command.print_help()
   elif options.user:
     if os.path.exists('/var/cpanel/userdata/' + options.user + '/main'):
      userdata = open('/var/cpanel/userdata/' + options.user + '/main').readlines()
@@ -50,9 +89,9 @@ def main():
          pdomain = line.split(':')[1].strip().split('\n')[0]
          break
      if 'pdomain' in locals():
-      print 'Primary domain `%s` found for User `%s`' % (pdomain,options.user)
      else:
-      print 'Primary domain not found for User `%s`' % options.user 
+      print '\n[!] Primary domain not found for User `%s`!' % options.user 
+      command.print_help()
   else:
     command.print_help()
 
