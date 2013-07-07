@@ -6,27 +6,39 @@ import os.path
 import hashlib
 import re
 
-def md5sum(filename, verbosity):
+def log(level, message, object):
+  if level == 'verbose' & object['verbose']:
+    print '[-] %s ' % message
+  elif level == 'error':
+    print '\n\033[1;31m[!] %s \033[0m\n' % message
+
+def md5sum(file):
   md5 = hashlib.md5()
-  with open(filename,'rb') as f: 
+  with open(file,'rb') as f: 
     for chunk in iter(lambda: f.read(128*md5.block_size), b''): 
       md5.update(chunk)
     return md5.hexdigest()
 
-def locatefiles(user, domain=''):
+def locatefiles(data):
   base = '/usr/local/apache/domlogs/'
-  if domain:
+  if len(data['domain']) == 1:
+    domain = data['domain']
+    data['domain'][domain]['files'] = []
     if os.path.exists(base + domain):
-      return [base + domain]
+      data['domain']['files'].append([base + domain])
     else:
-      userdata = open('/var/cpanel/userdata/' + user + '/main', 'r').readlines()
+      userdata = open('/var/cpanel/userdata/' + data['user'] + '/main', 'r').readlines()
       for line in userdata:
         if re.search('^\s\s' + domain + ':', line):
            subdom = line.split(':')[1].strip().split('\n')[0]
-           break
-      if os.path.exists(base + subdom):
-         return [base + subdom]
-  if user:
+           if data['domain'][subdom] not in locals():
+             data['domain'][subdom] = {}
+             data['domain'][subdom]['files'] = []
+           data['domain'][subdom]['files'].append([subdom])
+      for file in data['domain'][subdom]['files']:
+        if os.path.exists(dom[0]):
+          dom.append(md5sum(dom0))
+  elif len(data['domain']) > 1:
     userlogdir = base + user
     if os.path.exists(userlogdir):
       domains = []
@@ -65,42 +77,63 @@ def main():
   options, arguments = command.parse_args()
   data = {}
   data['files'] = []
+  data['domains'] = {}
+  if options.verbose:
+    data['verbose'] = true
   if options.file:
+    log('verbose', 'File provided, checking to see if it exists.', data)
     if os.path.exists(options.file):
-      data['files'].append([options.file,md5sum(options.file, options.verbose)])
+      log('verbose', 'File exists, generating md5...')
+      filedata = [options.file,md5sum(options.file)]
+      log('verbose', 'Generated: ' + filedata, data)
+      data['files'].append(filedata)
       print data
     else:
-      print "\n[!] \'%s\' does not appear to be a file. Please confirm it\'s validity.\n" % options.file
+      log('error', "'%s' does not appear to be a file. Please confirm it's validity." % options.file, data)
       command.print_help()
   elif options.domain:
+    log('verbose', 'Domain provided, checking to see if it\'s in /etc/userdomains.', data)
     if os.path.exists('/etc/userdomains'):
       userdomains = open('/etc/userdomains', 'r').readlines()
       for line in userdomains:
         if re.search('^' + options.domain + '\:' , line):
-          user = line.split(':')[1].strip().split('\n')[0]
-          break
-      if 'user' in locals():
-        print user
-        #do something  
+          log('verbose', 'Domain found in /etc/userdomains!', data)
+          data['user'] = line.split(':')[1].strip().split('\n')[0]
+      if data['user'] in locals():
+        locatefiles(data)
       else:
-        print '\n[!] Domain `%s` wasn\'t found in /etc/userdomains.\n' % options.domain
+        log('error', "Domain `%s` wasn't found in /etc/userdomains." % options.domain, data)
     else:
-      print "\n[!] /etc/userdomains doesn't exist. Is this a cPanel server?\n"
+      log('error', "/etc/userdomains doesn't exist. Is this a cPanel server?", data)
       command.print_help()
   elif options.user:
+    log('verbose', 'User provided, checking for userdata file.', data)
     if os.path.exists('/var/cpanel/userdata/' + options.user + '/main'):
-     userdata = open('/var/cpanel/userdata/' + options.user + '/main').readlines()
-     for line in userdata:
-       if re.search('^main_domain:', line):
-         pdomain = line.split(':')[1].strip().split('\n')[0]
-         break
-     if 'pdomain' in locals():
-       print pdomain
-     else:
-      print '\n[!] Primary domain not found for User `%s`!' % options.user 
+      log('verbose', 'Userdata exists, checking for /etc/passwd.', data)
+      if os.path.exists('/etc/passwd'):
+        log('verbose', '/etc/passwd exists, checking for user in passwd', data)
+        passwd = open('/etc/passwd', 'r').readlines()
+        for line in passwd:
+          if re.search('^' + options.user + ':', line):
+            log('verbose', 'User found!\n\t %s' % line, data)
+            data['user'] = options.user
+        if os.path.exists('/etc/userdomains'):
+          log('verbose', 'Loading domains from /etc/userdomains for `%s`...' % options.user, data)
+          userdomains = open('/etc/userdomains', 'r').readlines()
+          for line in userdomains:
+            if re.search('^(.*)\:' + options.user , line):
+              data['domain'][line.strip().split(":")[0].strip()] = {}
+          locatefiles(data)
+        else:
+          log('error', "/etc/userdomains doesn't exist. Is this a cPanel server?", data)
+          command.print_help()
+      else:
+        log('error', "/etc/passwd doesn't exist. Exiting...", data)
+        command.print_help()
+    else:
+      log('error', "No userdata file for `%s`!" % options.user, data)
       command.print_help()
-  else:
-    command.print_help()
+
 
 if __name__ == '__main__':
   main()
